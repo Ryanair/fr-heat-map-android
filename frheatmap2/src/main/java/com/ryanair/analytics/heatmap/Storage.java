@@ -44,6 +44,7 @@ public class Storage {
     protected static Manager manager;
     private Database database;
     private OnDbChangedListener dbChangedListener;
+    Replication pushReplication;
 
     public Storage(Context context) throws IOException, CouchbaseLiteException {
         manager = new Manager(new AndroidContext(context), Manager.DEFAULT_OPTIONS);
@@ -161,7 +162,7 @@ public class Storage {
             throw new RuntimeException(e);
         }
 
-        Replication pushReplication = database.createPushReplication(syncUrl);
+        pushReplication = database.createPushReplication(syncUrl);
         pushReplication.setContinuous(true);
 
         pushReplication.start();
@@ -173,6 +174,13 @@ public class Storage {
 
     public void setDbChangedListener(OnDbChangedListener dbChangedListener) {
         this.dbChangedListener = dbChangedListener;
+    }
+
+    public void close() {
+        pushReplication.stop();
+
+        database.close();
+        manager.close();
     }
 
     public interface OnDbChangedListener {

@@ -1,23 +1,20 @@
 package com.ryanair.analytics.heatmap.example;
 
 import android.os.Bundle;
-import android.support.v7.app.ActionBarActivity;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
 import android.widget.Toast;
 
-import com.ryanair.analytics.heatmap.FRHeatmap;
+import com.ryanair.analytics.heatmap.FRHeatmapActivity;
 
 
-public class MainActivity extends ActionBarActivity {
+public class MainActivity extends FRHeatmapActivity {
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
-
-        FRHeatmap heatmap = new FRHeatmap(this);
 
         findViewById(R.id.click_me).setOnClickListener(new View.OnClickListener() {
             @Override
