@@ -2,6 +2,7 @@ package com.ryanair.analytics.heatmap;
 
 import android.content.Context;
 import android.graphics.Point;
+import android.util.Log;
 
 import com.couchbase.lite.CouchbaseLiteException;
 import com.couchbase.lite.Database;
@@ -11,7 +12,6 @@ import com.couchbase.lite.LiveQuery;
 import com.couchbase.lite.Manager;
 import com.couchbase.lite.Mapper;
 import com.couchbase.lite.QueryRow;
-import com.couchbase.lite.Reducer;
 import com.couchbase.lite.View;
 import com.couchbase.lite.android.AndroidContext;
 import com.couchbase.lite.replicator.Replication;
@@ -21,7 +21,6 @@ import java.io.IOException;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -30,7 +29,6 @@ import java.util.Map;
 public class Storage {
     private static final String DB_NAME = "frheatmap";
     private static final String SYNC_URL = "http://192.168.0.11:4984/" + DB_NAME;
-    private static final String EVENT_COUNT_VIEW = "eventCount";
     private static final String COORDINATES_VIEW = "byCoordinates";
 
     private static final String FIELD_X = "x";
@@ -43,7 +41,6 @@ public class Storage {
 
     protected static Manager manager;
     private Database database;
-    private OnDbChangedListener dbChangedListener;
     Replication pushReplication;
 
     public Storage(Context context) throws IOException, CouchbaseLiteException {
@@ -51,7 +48,7 @@ public class Storage {
         database = manager.getDatabase(DB_NAME);
 
         createCoordinatesView();
-        createCountView();
+
         startSync();
     }
 
@@ -65,78 +62,54 @@ public class Storage {
                         Object x = document.get(FIELD_X);
                         Object y = document.get(FIELD_Y);
 
-                        Point coords = null;
+                        HashMap<String, Object> record = null;
 
                         if (x != null && y != null) {
-                            coords = new Point(Integer.valueOf(x.toString()), Integer.valueOf(y.toString()));
+                            record = new HashMap<>();
+
+                            record.put(FIELD_X, x);
+                            record.put(FIELD_Y, y);
+                            record.put(FIELD_APP_VERSION, version);
                         }
 
-                        if (version != null && coords != null) {
-                            emitter.emit(version, coords);
+                        if (version != null && record != null) {
+                            emitter.emit(version, record);
                         }
                     }
                 },
-                "2");
+                "4");
 
         LiveQuery liveQuery = coordinatesView.createQuery().toLiveQuery();
+
         liveQuery.addChangeListener(new LiveQuery.ChangeListener() {
             @Override
             public void changed(LiveQuery.ChangeEvent event) {
-                List<Point> points = new ArrayList<>();
+                Map<String, List<Object>> map = new HashMap<>();
 
                 for (Iterator<QueryRow> it = event.getRows(); it.hasNext(); ) {
                     QueryRow row = it.next();
                     LazyJsonObject lazy = (LazyJsonObject) row.getValue();
 
-                    points.add(new Point(Integer.valueOf(lazy.get(FIELD_X).toString()),
-                            Integer.valueOf(lazy.get(FIELD_Y).toString())));
+                    String key = String.format("%s-%s-%s", lazy.get(FIELD_X), lazy.get(FIELD_Y), lazy.get(FIELD_APP_VERSION));
+
+                    if (map.get(key) == null) {
+                        map.put(key, new ArrayList<>());
+                    }
+
+                    HashMap<String, Object> point = new HashMap<>();
+                    point.put("x", lazy.get(FIELD_X));
+                    point.put("y", lazy.get(FIELD_Y));
+                    point.put("version", lazy.get(FIELD_APP_VERSION));
+
+                    map.get(key).add(point);
                 }
 
-                if (dbChangedListener != null) {
-                    Collections.reverse(points);
-                    dbChangedListener.onDataChanged(points);
-                }
+                Log.i("frheatmap", map.toString());
+
+                // todo store the aggregated data in another document and sync it
             }
         });
 
-        liveQuery.start();
-    }
-
-    private void createCountView() {
-        View eventCountView = database.getView(EVENT_COUNT_VIEW);
-        eventCountView.setMapReduce(
-                new Mapper() {
-                    @Override
-                    public void map(Map<String, Object> document, Emitter emitter) {
-                        Object version = document.get(FIELD_APP_VERSION);
-                        if (version != null) {
-                            emitter.emit(version, null);
-                        }
-                    }
-                },
-                new Reducer() {
-                    @Override
-                    public Object reduce(List<Object> keys, List<Object> values, boolean b) {
-                        return keys.size();
-                    }
-                },
-                "1");
-
-        LiveQuery liveQuery = eventCountView.createQuery().toLiveQuery();
-        liveQuery.addChangeListener(new LiveQuery.ChangeListener() {
-            @Override
-            public void changed(LiveQuery.ChangeEvent changeEvent) {
-                int result = 0;
-                for (Iterator<QueryRow> it = changeEvent.getRows(); it.hasNext(); ) {
-                    QueryRow row = it.next();
-                    result = Integer.valueOf(row.getValue().toString());
-                }
-
-                if (dbChangedListener != null) {
-                    dbChangedListener.onCountChanged(result);
-                }
-            }
-        });
         liveQuery.start();
     }
 
@@ -168,24 +141,10 @@ public class Storage {
         pushReplication.start();
     }
 
-    public OnDbChangedListener getDbChangedListener() {
-        return dbChangedListener;
-    }
-
-    public void setDbChangedListener(OnDbChangedListener dbChangedListener) {
-        this.dbChangedListener = dbChangedListener;
-    }
-
     public void close() {
         pushReplication.stop();
 
         database.close();
         manager.close();
-    }
-
-    public interface OnDbChangedListener {
-        void onCountChanged(int count);
-
-        void onDataChanged(List<Point> points);
     }
 }
