@@ -22,7 +22,6 @@ import java.util.Map;
 public class Storage {
     private static final String DB_NAME = "frheatmap";
     private static final String SYNC_URL = "http://10.11.72.145:4984/" + DB_NAME;
-    private static final String COORDINATES_VIEW = "byCoordinates";
 
     private static final String FIELD_X = "x";
     private static final String FIELD_Y = "y";
