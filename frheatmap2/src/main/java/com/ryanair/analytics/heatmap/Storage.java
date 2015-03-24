@@ -10,7 +10,6 @@ import com.couchbase.lite.Manager;
 import com.couchbase.lite.UnsavedRevision;
 import com.couchbase.lite.android.AndroidContext;
 import com.couchbase.lite.replicator.Replication;
-import com.ryanair.analytics.heatmap.util.Sha256;
 import com.ryanair.analytics.heatmap.util.UniqueId;
 
 import java.io.IOException;
@@ -21,7 +20,7 @@ import java.util.Map;
 
 public class Storage {
     private static final String DB_NAME = "frheatmap";
-    private static final String SYNC_URL = "http://10.11.72.145:4984/" + DB_NAME;
+    private static final String SYNC_URL = "http://192.168.0.11:4984/" + DB_NAME;
 
     private static final String FIELD_X = "x";
     private static final String FIELD_Y = "y";
@@ -73,9 +72,12 @@ public class Storage {
     }
 
     private String generateId(int appVersion, String activityName, int x, int y) {
-        String id = String.format("%s-%d-%s-%d-%d", UniqueId.getUniqueID(mContext), appVersion, activityName, x, y);
-
-        return Sha256.Digest(id);
+        return String.format("%s::%d::%d::%d::%s",
+                activityName,
+                appVersion,
+                x,
+                y,
+                UniqueId.getUniqueID(mContext));
     }
 
     private void startSync() {
