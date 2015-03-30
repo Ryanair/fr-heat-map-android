@@ -19,13 +19,11 @@ import java.util.HashMap;
 import java.util.Map;
 
 public class Storage {
-    private static final String DB_NAME = "frheatmap";
-    private static final String SYNC_URL = "http://192.168.0.11:4984/" + DB_NAME;
+    private static final String BUCKET_NAME = "frheatmap";
+    private static final String SYNC_URL = "http://192.168.0.11:4984/" + BUCKET_NAME;
 
     private static final String FIELD_X = "x";
     private static final String FIELD_Y = "y";
-    private static final String FIELD_SCREEN_X = "screenX";
-    private static final String FIELD_SCREEN_Y = "screenY";
     private static final String FIELD_ACTIVITY_NAME = "activity_name";
     private static final String FIELD_APP_VERSION = "app_version";
     private static final String FIELD_HIT_COUNT = "hit_count";
@@ -40,20 +38,21 @@ public class Storage {
         mContext = context;
 
         manager = new Manager(new AndroidContext(mContext), Manager.DEFAULT_OPTIONS);
-        database = manager.getDatabase(DB_NAME);
+        database = manager.getDatabase(BUCKET_NAME);
 
         startSync();
     }
 
     public void create(int x, int y, Point screenSize, String className) throws CouchbaseLiteException {
-        Document document = database.getDocument(generateId(BuildConfig.VERSION_CODE, className, x, y));
+        Point pixel = new Point(x, y);
+        Point resizedPixel = resizePixel(pixel, screenSize.x, screenSize.y, 320, 540);
+
+        Document document = database.getDocument(generateId(BuildConfig.VERSION_CODE, className, resizedPixel.x, resizedPixel.y));
 
         if (document.getCurrentRevision() == null) {
             Map<String, Object> properties = new HashMap<>();
-            properties.put(FIELD_X, x);
-            properties.put(FIELD_Y, y);
-            properties.put(FIELD_SCREEN_X, screenSize.x);
-            properties.put(FIELD_SCREEN_Y, screenSize.y);
+            properties.put(FIELD_X, resizedPixel.x);
+            properties.put(FIELD_Y, resizedPixel.y);
             properties.put(FIELD_ACTIVITY_NAME, className);
             properties.put(FIELD_APP_VERSION, BuildConfig.VERSION_CODE);
             properties.put(FIELD_HIT_COUNT, 1);
@@ -100,4 +99,13 @@ public class Storage {
         database.close();
         manager.close();
     }
+
+    public Point resizePixel(Point pixel, int w1, int h1, int w2, int h2) {
+        Point result = new Point();
+        result.x = Math.round(((float) pixel.x / w1) * w2);
+        result.y = Math.round(((float) pixel.y / h1) * h2);
+
+        return result;
+    }
+
 }
